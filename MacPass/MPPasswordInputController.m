@@ -20,6 +20,9 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include <Security/Security.h>
+#include <Security/SecKeychain.h>
+
 #import "MPPasswordInputController.h"
 #import "MPAppDelegate.h"
 #import "MPDocumentWindowController.h"
@@ -41,6 +44,7 @@
 @property (weak) IBOutlet NSTextField *messageInfoTextField;
 @property (strong) IBOutlet NSTextField *keyFileWarningTextField;
 @property (weak) IBOutlet NSButton *togglePasswordButton;
+@property (weak) IBOutlet NSButton *useKeychainForKeyfileCheckBox;
 @property (weak) IBOutlet NSButton *enablePasswordCheckBox;
 @property (weak) IBOutlet NSButton *unlockButton;
 @property (weak) IBOutlet NSButton *cancelButton;
@@ -138,6 +142,25 @@
   }
 }
 
+- (IBAction)onToggleKeyChainKeyFile:(id)sender {
+  NSLog(@"keychain %ld", (long)self.useKeychainForKeyfileCheckBox.state);
+  switch (self.useKeychainForKeyfileCheckBox.state) {
+    case NSControlStateValueOn:
+      self.keyPathControl.enabled = false;
+      self.keyPathControl.editable = false;
+      self.keyPathControl.URL = [NSURL URLWithString:@"keychain://keyfile.key"];
+      break;
+    case NSControlStateValueOff:
+      self.keyPathControl.enabled = true;
+      self.keyPathControl.editable = true;
+      self.keyPathControl.URL = nil;
+      break;
+    default:
+      NSLog(@"warning: unknown keychain state %ld",
+            (long)self.useKeychainForKeyfileCheckBox.state);
+  }
+}
+
 - (IBAction)resetKeyFile:(id)sender {
   /* If the reset was triggered by ourselves we want to preselect the keyfile */
   if(sender == self) {
@@ -145,6 +168,8 @@
   }
   else {
     self.keyPathControl.URL = nil;
+    self.useKeychainForKeyfileCheckBox.state = NSControlStateValueOff;
+    [self onToggleKeyChainKeyFile: self];
   }
 }
 
@@ -238,3 +263,71 @@
 
 
 @end
+
+void AddPw() {
+  NSString* accountName = @"Yifei.kdbx";
+  NSString* serviceName = @"MacPass KeyFile";
+
+  // Replace placeholder key
+  NSString* keyHex = @"8BADF00D";
+
+  keyHex = [keyHex stringByReplacingOccurrencesOfString:@" " withString:@""];
+  keyHex = [keyHex stringByReplacingOccurrencesOfString:@"\n" withString:@""];
+  NSMutableData *keyBin = [[NSMutableData alloc] init];
+  unsigned char whole_byte;
+  char byte_chars[3] = {'\0','\0','\0'};
+  int i;
+  for (i=0; i < [keyHex length]/2; i++) {
+      byte_chars[0] = [keyHex characterAtIndex:i*2];
+      byte_chars[1] = [keyHex characterAtIndex:i*2+1];
+      whole_byte = strtol(byte_chars, NULL, 16);
+      [keyBin appendBytes:&whole_byte length:1];
+  }
+
+  OSStatus status = SecKeychainAddGenericPassword(NULL,
+                                                  (UInt32)serviceName.length,
+                                                  [serviceName cStringUsingEncoding:NSUTF8StringEncoding],
+                                                  (UInt32)accountName.length,
+                                                  [accountName cStringUsingEncoding:NSUTF8StringEncoding],
+                                                  (UInt32)keyBin.length,
+                                                  [keyBin bytes],
+                                                  NULL);
+  if (status != errSecSuccess) {
+    NSLog(@"Error writing to keychain: %d", status);
+  }
+}
+
+NSData* MPLoadKeyFile(NSURL* keyURL) {
+  if (keyURL == nil) {
+    return nil;
+  }
+
+  NSLog(@"%@", keyURL.absoluteString);
+  NSString* urlString = keyURL.absoluteString;
+  if (![urlString isEqualToString:@"keychain://keyfile.key"]) {
+    return [NSData dataWithContentsOfURL:keyURL];
+  }
+
+  // AddPw();
+
+  NSString* accountName = @"Yifei.kdbx";
+  NSString* serviceName = @"MacPass KeyFile";
+  void * resultBytes = NULL;
+  UInt32 resultLength = 0;
+  OSStatus status = SecKeychainFindGenericPassword(NULL,
+                                                   (UInt32)serviceName.length,
+                                                   [serviceName cStringUsingEncoding:NSUTF8StringEncoding],
+                                                   (UInt32)accountName.length,
+                                                   [accountName cStringUsingEncoding:NSUTF8StringEncoding],
+                                                   &resultLength,
+                                                   &resultBytes,
+                                                   NULL);
+  if (status != errSecSuccess) {
+    NSLog(@"Error reading from keychain: %d", status);
+    return nil;
+  }
+  NSData *result = [[NSData alloc] initWithBytes:resultBytes
+                                          length:resultLength];
+  SecKeychainItemFreeContent(NULL, resultBytes);
+  return result;
+}

@@ -33,3 +33,5 @@ typedef BOOL (^passwordInputCompletionBlock)(NSString *password, NSURL *keyURL, 
 
 
 @end
+
+NSData* MPLoadKeyFile(NSURL* keyURL);

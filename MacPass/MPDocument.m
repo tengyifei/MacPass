@@ -432,7 +432,7 @@ NSString *const MPDocumentGroupKey                            = @"MPDocumentGrou
                                         completionHandler:^BOOL(NSString *password, NSURL *keyURL, BOOL didCancel, NSError *__autoreleasing *error) {
                                           [self.windowForSheet endSheet:sheet returnCode:(didCancel ? NSModalResponseCancel : NSModalResponseOK)];
                                           if(!didCancel) {
-                                            NSData *keyFileData = keyURL ? [NSData dataWithContentsOfURL:keyURL] : nil;
+                                            NSData *keyFileData = MPLoadKeyFile(keyURL);
                                             KPKCompositeKey *compositeKey = [[KPKCompositeKey alloc] init];
                                             [compositeKey addKey:[KPKKey keyWithPassword:password]];
                                             [compositeKey addKey:[KPKKey keyWithKeyFileData:keyFileData]];
@@ -503,7 +503,7 @@ NSString *const MPDocumentGroupKey                            = @"MPDocumentGrou
 
 - (BOOL)unlockWithPassword:(NSString *)password keyFileURL:(NSURL *)keyFileURL error:(NSError *__autoreleasing*)error{
   // TODO: Make this API asynchronous
-  NSData *keyFileData = keyFileURL ? [NSData dataWithContentsOfURL:keyFileURL] : nil;
+  NSData *keyFileData = MPLoadKeyFile(keyFileURL);
   
   self.compositeKey = [[KPKCompositeKey alloc] init];
   [self.compositeKey addKey:[KPKKey keyWithPassword:password]];
@@ -530,7 +530,7 @@ NSString *const MPDocumentGroupKey                            = @"MPDocumentGrou
   if(password.length == 0 && keyFileURL == nil) {
     return NO;
   }
-  NSData *keyFileData = keyFileURL ? [NSData dataWithContentsOfURL:keyFileURL] : nil;
+  NSData *keyFileData = MPLoadKeyFile(keyFileURL);
   self.compositeKey = [[KPKCompositeKey alloc] init];
   [self.compositeKey addKey:[KPKKey keyWithPassword:password]];
   [self.compositeKey addKey:[KPKKey keyWithKeyFileData:keyFileData]];
